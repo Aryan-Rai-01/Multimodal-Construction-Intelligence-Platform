@@ -40,34 +40,72 @@ inject_css()
 # ---------------------------------------------------------------------------
 # Sidebar — API key, mode, architecture overview
 # ---------------------------------------------------------------------------
+def _secret_api_key() -> str:
+    """Key saved in Streamlit secrets (Cloud secrets or .streamlit/secrets.toml)."""
+    try:
+        return (st.secrets.get("GEMINI_API_KEY", "") or "").strip()
+    except Exception:
+        return ""
+
+
 def _resolve_api_key() -> str:
-    """Sidebar password input wins; st.secrets is the deployment fallback."""
+    """Sidebar password input wins; a saved secret is the fallback."""
     typed = st.session_state.get("gemini_api_key", "")
     if typed:
         return typed.strip()
-    try:
-        secret = st.secrets.get("GEMINI_API_KEY", "")
-        return (secret or "").strip()
-    except Exception:
-        return ""
+    return _secret_api_key()
 
 
 with st.sidebar:
     st.title("🏗️ Construction Intelligence")
     st.caption(C.APP_SUBTITLE)
 
-    st.text_input(
-        "Google Gemini API key",
-        type="password",
-        key="gemini_api_key",
-        help="Stored only in this session. Without a key the app runs in demonstration mode.",
-    )
+    # --- API key: a saved secret hides the input entirely ---
+    if _secret_api_key():
+        st.success("🔒 API key saved securely (Streamlit secrets) — no need to enter it.")
+    else:
+        st.text_input(
+            "Google Gemini API key",
+            type="password",
+            key="gemini_api_key",
+            help="Only for local testing. For a saved key, use Streamlit secrets — see README.",
+        )
+        st.caption(
+            "Tip: save the key once in Streamlit secrets (or .streamlit/secrets.toml "
+            "locally) and the app will stop asking for it."
+        )
     api_key = _resolve_api_key()
     client, client_note = build_client(api_key)
     mode = "🟢 Live Gemini" if client else "🎭 Demonstration mode"
     st.markdown(f"**Mode:** {mode}")
     if client_note:
         st.caption(client_note)
+
+    # --- Model picker with free-tier rate limits ---
+    st.subheader("AI model")
+    model_label = st.selectbox(
+        "Model",
+        list(C.MODELS),
+        index=list(C.MODELS).index(C.DEFAULT_MODEL_LABEL),
+        help="All three accept image + text, so every tab works with any choice.",
+    )
+    model_info = C.MODELS[model_label]
+    selected_model = model_info["model_id"]
+    st.caption(
+        f"Free tier: **{model_info['rpm']} req/min · {model_info['rpd']} req/day · "
+        f"{model_info['tpm']} tokens/min** — {model_info['note']}"
+    )
+    with st.expander("All models' free-tier limits"):
+        for label, info in C.MODELS.items():
+            st.write(
+                f"**{label}** (`{info['model_id']}`): {info['rpm']} req/min, "
+                f"{info['rpd']} req/day, {info['tpm']} tokens/min"
+            )
+        st.caption(
+            "Approximate free-tier figures — Google no longer publishes a free-tier "
+            "table, so your exact quota is shown in Google AI Studio. Paid tiers "
+            "raise these limits substantially."
+        )
 
     st.divider()
     st.subheader("Architecture overview")
@@ -154,7 +192,8 @@ with tabs[0]:
         if st.button("Run PPE Audit", key="ppe_run"):
             with st.spinner("Analysing PPE compliance…"):
                 result, note = analyze_image(
-                    client, image_bytes, mime, PPE_AUDIT_PROMPT, demo_ppe_result
+                    client, image_bytes, mime, PPE_AUDIT_PROMPT, demo_ppe_result,
+                    model=selected_model,
                 )
             if note:
                 demo_banner(note)
@@ -211,7 +250,8 @@ with tabs[1]:
         if st.button("Diagnose Crack", key="crack_run"):
             with st.spinner("Diagnosing structural defect…"):
                 result, note = analyze_image(
-                    client, image_bytes, mime, CRACK_DIAGNOSTICS_PROMPT, demo_crack_result
+                    client, image_bytes, mime, CRACK_DIAGNOSTICS_PROMPT, demo_crack_result,
+                    model=selected_model,
                 )
             if note:
                 demo_banner(note)
@@ -352,7 +392,9 @@ with tabs[3]:
         with st.chat_message("user"):
             st.write(user_msg)
         with st.spinner("Thinking…"):
-            reply, note = chat_reply(client, st.session_state["chat_history"], user_msg)
+            reply, note = chat_reply(
+                client, st.session_state["chat_history"], user_msg, model=selected_model
+            )
         st.session_state["chat_history"].append({"role": "assistant", "content": reply})
         with st.chat_message("assistant"):
             st.write(reply)

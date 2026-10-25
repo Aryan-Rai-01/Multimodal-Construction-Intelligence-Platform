@@ -168,3 +168,37 @@ WEATHER_ADVISORIES = {
         ],
     },
 }
+
+# ---------------------------------------------------------------------------
+# Gemini models selectable in the sidebar (Tab: model picker)
+# ---------------------------------------------------------------------------
+# Free-tier limits below are approximate (requests/min, requests/day,
+# input tokens/min). Google no longer publishes a free-tier table, and
+# third-party measurements disagree slightly (e.g. 10 vs 15 RPM for
+# Flash-Lite). The authoritative quota for a project is shown in
+# Google AI Studio. Paid tiers raise these limits substantially.
+MODELS = {
+    "Gemini 3.6 Flash": {
+        "model_id": "gemini-3.6-flash",
+        "rpm": 5,
+        "rpd": 20,
+        "tpm": "250K",
+        "note": "Balanced workhorse — coding, multimodal, agentic tasks.",
+    },
+    "Gemini 3.8 Flash": {
+        "model_id": "gemini-3.8-flash",
+        "rpm": 5,
+        "rpd": 20,
+        "tpm": "250K",
+        "note": "Strongest reasoning/coding of the three — long-horizon work.",
+    },
+    "Gemini 3.5 Flash-Lite": {
+        "model_id": "gemini-3.5-flash-lite",
+        "rpm": 10,
+        "rpd": 500,
+        "tpm": "250K",
+        "note": "Fastest and cheapest — highest daily allowance.",
+    },
+}
+
+DEFAULT_MODEL_LABEL = "Gemini 3.6 Flash"

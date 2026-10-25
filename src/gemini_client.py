@@ -15,7 +15,8 @@ from typing import Callable, Tuple
 
 from src.config import DEFECT_TYPES, PPE_ITEMS
 
-MODEL_NAME = "gemini-2.5-flash"
+# Default when the caller does not pass a model (sidebar selection wins).
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +146,7 @@ def analyze_image(
     mime_type: str,
     prompt: str,
     demo_fn: Callable[[bytes], dict],
+    model: str = DEFAULT_MODEL,
 ) -> Tuple[dict, str]:
     """Run a multimodal analysis. Returns (result, note).
 
@@ -157,7 +159,7 @@ def analyze_image(
         from google.genai import types
 
         response = client.models.generate_content(
-            model=MODEL_NAME,
+            model=model,
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
@@ -183,7 +185,9 @@ _DEMO_CHAT_RULES = [
 ]
 
 
-def chat_reply(client, history: list, user_message: str) -> Tuple[str, str]:
+def chat_reply(
+    client, history: list, user_message: str, model: str = DEFAULT_MODEL
+) -> Tuple[str, str]:
     """Return (reply, note). history is a list of {'role','content'} dicts."""
     if client is None:
         lowered = user_message.lower()
@@ -205,7 +209,7 @@ def chat_reply(client, history: list, user_message: str) -> Tuple[str, str]:
         from src.prompts import CHAT_SYSTEM_PROMPT
 
         response = client.models.generate_content(
-            model=MODEL_NAME,
+            model=model,
             contents=f"{CHAT_SYSTEM_PROMPT}\n\nConversation so far:\n{transcript}\n\nUser: {user_message}\nAssistant:",
         )
         return (response.text or "").strip(), ""

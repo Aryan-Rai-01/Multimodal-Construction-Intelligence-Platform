@@ -1,0 +1,5 @@
+# NEVER commit a real API key. The real secrets file is ignored by git.
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+.venv/

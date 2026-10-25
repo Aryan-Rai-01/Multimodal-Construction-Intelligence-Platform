@@ -21,9 +21,47 @@ streamlit run app.py
 ```
 
 No API key is required to explore: without a key the app runs in
-**demonstration mode** with realistic, image-seeded sample results. Add a
-Google Gemini API key in the sidebar (or as a Streamlit secret named
-`GEMINI_API_KEY`) for live multimodal analysis and chat.
+**demonstration mode** with realistic, image-seeded sample results. For live
+multimodal analysis and chat, add a Google Gemini API key.
+
+## Saving your API key (so the app never asks for it)
+
+**On Streamlit Community Cloud (recommended):** open your app → **Settings →
+Secrets** and add:
+
+```toml
+GEMINI_API_KEY = "your-key-here"
+```
+
+Then reboot the app once. The sidebar will show "API key saved securely"
+and stop asking for a key.
+
+**Locally:** copy `.streamlit/secrets.toml.example` to
+`.streamlit/secrets.toml` and put your key there.
+
+**Why this stays safe:**
+- Secrets are stored encrypted by Streamlit and are never written into code,
+  never committed to GitHub (`.streamlit/secrets.toml` is git-ignored), and
+  never shown to app visitors — the sidebar input disappears entirely once a
+  secret is set.
+- One honest caveat: anyone who can open a *public* app can still trigger
+  model calls on your key's quota (the key itself stays hidden, but usage is
+  billed to you). For a personal project, keep the deployed app private or
+  treat the free-tier limits as your budget.
+
+## Choosing a model
+
+Pick from the sidebar — all three accept image + text, so every tab works
+with any choice. Approximate free-tier limits:
+
+| Model | ID | Req/min | Req/day | Tokens/min |
+| --- | --- | --- | --- | --- |
+| Gemini 3.6 Flash | `gemini-3.6-flash` | 5 | 20 | 250K |
+| Gemini 3.8 Flash | `gemini-3.8-flash` | 5 | 20 | 250K |
+| Gemini 3.5 Flash-Lite | `gemini-3.5-flash-lite` | 10 | 500 | 250K |
+
+Google no longer publishes a free-tier table — your exact quota is shown in
+Google AI Studio, and paid tiers raise these limits substantially.
 
 ## Deploy on Streamlit Community Cloud (1-click)
 
