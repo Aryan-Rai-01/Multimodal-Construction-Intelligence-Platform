@@ -95,85 +95,93 @@ with st.sidebar:
         "Mode",
         ["🎭 Demonstration", "🔑 Use API key"],
         index=1 if any_secret else 0,
+        key="app_mode",
         help="Demonstration shows sample results and never calls a provider, so no "
         "quota is used. Use API key sends your photos and questions to the "
-        "selected provider.",
+        "selected provider. Provider, key and model controls appear only in "
+        "Use API key mode.",
     )
     force_demo = app_mode.startswith("🎭")
 
-    provider = st.selectbox(
-        "AI provider",
-        PROVIDERS,
-        help="Each provider uses its own endpoint and key. Custom endpoint speaks "
-        "OpenAI-compatible chat completions, Hermes-style.",
-    )
-    base_url = ""
+    # Provider, key and model controls exist only in Use API key mode.
+    # In Demonstration mode the sidebar stays clean; the defaults below
+    # keep the tab code working (calls are forced to demo anyway).
+    provider, api_key, model_id, base_url = "Google Gemini", "", "", ""
     context_tokens = None
+    if not force_demo:
+        provider = st.selectbox(
+            "AI provider",
+            PROVIDERS,
+            help="Each provider uses its own endpoint and key. Custom endpoint speaks "
+            "OpenAI-compatible chat completions, Hermes-style.",
+        )
+        base_url = ""
+        context_tokens = None
 
-    if provider == "Google Gemini":
-        api_key = _key_input("Google Gemini", "GEMINI_API_KEY", "gemini_api_key")
-        model_id = _model_picker(provider, C.MODELS, "gemini")
-        info = C.MODELS[st.session_state["model_gemini"]]
-        st.caption(
-            f"Free tier: **{info['rpm']} req/min · {info['rpd']} req/day · "
-            f"{info['tpm']} tokens/min** — {info['note']}"
-        )
-        with st.expander("All Gemini models' free-tier limits"):
-            for label, item in C.MODELS.items():
-                st.write(
-                    f"**{label}** (`{item['model_id']}`): {item['rpm']} req/min, "
-                    f"{item['rpd']} req/day, {item['tpm']} tokens/min"
-                )
+        if provider == "Google Gemini":
+            api_key = _key_input("Google Gemini", "GEMINI_API_KEY", "gemini_api_key")
+            model_id = _model_picker(provider, C.MODELS, "gemini")
+            info = C.MODELS[st.session_state["model_gemini"]]
             st.caption(
-                "Approximate free-tier figures — Google no longer publishes a "
-                "free-tier table, so your exact quota is shown in Google AI Studio. "
-                "Paid tiers raise these limits substantially."
+                f"Free tier: **{info['rpm']} req/min · {info['rpd']} req/day · "
+                f"{info['tpm']} tokens/min** — {info['note']}"
             )
-    elif provider == "Anthropic":
-        api_key = _key_input("Anthropic", "ANTHROPIC_API_KEY", "anthropic_api_key")
-        model_id = _model_picker(provider, C.ANTHROPIC_MODELS, "anthropic")
-        info = C.ANTHROPIC_MODELS[st.session_state["model_anthropic"]]
-        st.caption(f"{info['note']} Rate limits depend on your plan — see the Anthropic console.")
-    elif provider == "OpenAI":
-        api_key = _key_input("OpenAI", "OPENAI_API_KEY", "openai_api_key")
-        model_id = _model_picker(provider, C.OPENAI_MODELS, "openai")
-        info = C.OPENAI_MODELS[st.session_state["model_openai"]]
-        st.caption(f"{info['note']} Rate limits depend on your plan — see the OpenAI console.")
-    else:  # Custom endpoint (Hermes-style)
-        base_url = st.text_input(
-            "Base URL",
-            value=_secret_value("CUSTOM_BASE_URL") or "http://localhost:11434/v1",
-            help="OpenAI-compatible endpoint. /v1 is added automatically if missing.",
-        )
-        api_key = _key_input(
-            "Custom endpoint", "CUSTOM_API_KEY", "custom_api_key", optional=True
-        )
-        if st.button("Fetch models"):
-            ids, err = fetch_models(base_url, api_key)
-            if err:
-                st.error(err)
-            else:
-                st.session_state["custom_models"] = ids
-                st.session_state["custom_model_input"] = ids[0]
-        model_id = st.text_input(
-            "Model name",
-            value=_secret_value("CUSTOM_MODEL") or "",
-            key="custom_model_input",
-            help="Any model your endpoint serves, e.g. qwen3.5:27b. Use Fetch models "
-            "above to list what the server offers.",
-        )
-        if st.session_state.get("custom_models"):
-            st.caption("Server models: " + ", ".join(st.session_state["custom_models"]))
-        with st.expander("Advanced"):
-            context_tokens = st.number_input(
-                "Context length (chat history budget, tokens)",
-                min_value=0,
-                value=64000,
-                step=1000,
-                help="Older chat turns are trimmed to fit this budget. Image analysis "
-                "is single-turn and unaffected. (Hermes-style field; unlike Hermes, "
-                "this app sends short requests, so no 64K minimum is enforced.)",
+            with st.expander("All Gemini models' free-tier limits"):
+                for label, item in C.MODELS.items():
+                    st.write(
+                        f"**{label}** (`{item['model_id']}`): {item['rpm']} req/min, "
+                        f"{item['rpd']} req/day, {item['tpm']} tokens/min"
+                    )
+                st.caption(
+                    "Approximate free-tier figures — Google no longer publishes a "
+                    "free-tier table, so your exact quota is shown in Google AI Studio. "
+                    "Paid tiers raise these limits substantially."
+                )
+        elif provider == "Anthropic":
+            api_key = _key_input("Anthropic", "ANTHROPIC_API_KEY", "anthropic_api_key")
+            model_id = _model_picker(provider, C.ANTHROPIC_MODELS, "anthropic")
+            info = C.ANTHROPIC_MODELS[st.session_state["model_anthropic"]]
+            st.caption(f"{info['note']} Rate limits depend on your plan — see the Anthropic console.")
+        elif provider == "OpenAI":
+            api_key = _key_input("OpenAI", "OPENAI_API_KEY", "openai_api_key")
+            model_id = _model_picker(provider, C.OPENAI_MODELS, "openai")
+            info = C.OPENAI_MODELS[st.session_state["model_openai"]]
+            st.caption(f"{info['note']} Rate limits depend on your plan — see the OpenAI console.")
+        else:  # Custom endpoint (Hermes-style)
+            base_url = st.text_input(
+                "Base URL",
+                value=_secret_value("CUSTOM_BASE_URL") or "http://localhost:11434/v1",
+                help="OpenAI-compatible endpoint. /v1 is added automatically if missing.",
             )
+            api_key = _key_input(
+                "Custom endpoint", "CUSTOM_API_KEY", "custom_api_key", optional=True
+            )
+            if st.button("Fetch models"):
+                ids, err = fetch_models(base_url, api_key)
+                if err:
+                    st.error(err)
+                else:
+                    st.session_state["custom_models"] = ids
+                    st.session_state["custom_model_input"] = ids[0]
+            model_id = st.text_input(
+                "Model name",
+                value=_secret_value("CUSTOM_MODEL") or "",
+                key="custom_model_input",
+                help="Any model your endpoint serves, e.g. qwen3.5:27b. Use Fetch models "
+                "above to list what the server offers.",
+            )
+            if st.session_state.get("custom_models"):
+                st.caption("Server models: " + ", ".join(st.session_state["custom_models"]))
+            with st.expander("Advanced"):
+                context_tokens = st.number_input(
+                    "Context length (chat history budget, tokens)",
+                    min_value=0,
+                    value=64000,
+                    step=1000,
+                    help="Older chat turns are trimmed to fit this budget. Image analysis "
+                    "is single-turn and unaffected. (Hermes-style field; unlike Hermes, "
+                    "this app sends short requests, so no 64K minimum is enforced.)",
+                )
 
     # --- Mode indicator ---
     if force_demo:

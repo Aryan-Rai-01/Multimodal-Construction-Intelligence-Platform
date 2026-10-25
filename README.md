@@ -35,7 +35,10 @@ The sidebar has a **Mode** switch with two options:
   explaining why.
 
 The switch defaults to **Use API key** when any provider key is saved in
-secrets, and to **Demonstration** otherwise.
+secrets, and to **Demonstration** otherwise. Provider, key and model
+controls only appear in **Use API key** mode — in **Demonstration** mode
+the sidebar shows just the switch and the mode indicator, since there is
+nothing to configure.
 
 ## Providers
 
