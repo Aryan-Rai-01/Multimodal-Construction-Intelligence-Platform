@@ -11,7 +11,7 @@ import hashlib
 import json
 import random
 import re
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 from src.config import DEFECT_TYPES, PPE_ITEMS
 

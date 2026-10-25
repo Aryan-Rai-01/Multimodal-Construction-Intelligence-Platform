@@ -25,7 +25,7 @@ from src.gemini_client import (
     demo_ppe_result,
 )
 from src.prompts import CRACK_DIAGNOSTICS_PROMPT, PPE_AUDIT_PROMPT
-from src.ui import demo_banner, inject_css, severity_pill, status_pill
+from src.ui import demo_banner, inject_css, pill, severity_pill, status_pill
 from src.valuation import calculate_project, format_inr, indian_format
 
 st.set_page_config(
