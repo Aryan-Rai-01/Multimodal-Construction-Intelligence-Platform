@@ -22,15 +22,39 @@ streamlit run app.py
 
 No API key is required to explore: without a key the app runs in
 **demonstration mode** with realistic, image-seeded sample results. For live
-multimodal analysis and chat, add a Google Gemini API key.
+multimodal analysis and chat, pick a provider in the sidebar and add its key.
+
+## Providers
+
+| Provider | Endpoint | Models (defaults, IDs editable in the sidebar) |
+| --- | --- | --- |
+| Google Gemini | google-genai SDK | Gemini 3.6 Flash, 3.8 Flash, 3.5 Flash-Lite |
+| Anthropic | `https://api.anthropic.com/v1/messages` | Opus 5.5, Sonnet 5.5, Haiku 5.5 |
+| OpenAI | `https://api.openai.com/v1/chat/completions` | GPT 6 Astra, GPT 6.1 Sol, GPT 6 Luna |
+| Custom endpoint | Your URL (Hermes-style) | Any model your server offers |
+
+**Custom endpoint (Hermes-style):** enter a base URL, an optional API key
+(leave empty for local servers without auth), and a model name — or hit
+**Fetch models** to list what the server offers via `GET {base}/models`.
+Base URLs are normalised automatically: a trailing slash is stripped and
+`/v1` is appended when the URL contains no `/v1` segment. Requests use
+OpenAI-compatible chat completions with a long (300 s) timeout for slow
+local models. The optional context-length field trims older chat turns to
+fit the server's context; image analysis is single-turn and unaffected.
+Any provider failure falls back to demonstration results with a note.
 
 ## Saving your API key (so the app never asks for it)
 
 **On Streamlit Community Cloud (recommended):** open your app → **Settings →
-Secrets** and add:
+Secrets** and add whichever keys you use:
 
 ```toml
 GEMINI_API_KEY = "your-key-here"
+ANTHROPIC_API_KEY = "your-key-here"
+OPENAI_API_KEY = "your-key-here"
+CUSTOM_API_KEY = "your-key-here"
+CUSTOM_BASE_URL = "https://your-endpoint.example/v1"
+CUSTOM_MODEL = "your-model-name"
 ```
 
 Then reboot the app once. The sidebar will show "API key saved securely"
@@ -77,10 +101,11 @@ Google AI Studio, and paid tiers raise these limits substantially.
 ```
 app.py                  # Streamlit entry point (sidebar + 4 tabs)
 src/
-  config.py             # Rates, tiers, advisories, constants
+  config.py             # Rates, tiers, advisories, model tables
   valuation.py          # Pure, testable valuation math
-  prompts.py            # Gemini multimodal + chat prompts
-  gemini_client.py      # Gemini wrapper + demonstration fallback
+  prompts.py            # Multimodal + chat prompts
+  gemini_client.py      # Gemini wrapper + demonstration data
+  providers.py          # Gemini / Anthropic / OpenAI / Custom dispatch
   ui.py                 # CSS, status pills, banners
 requirements.txt
 README.md

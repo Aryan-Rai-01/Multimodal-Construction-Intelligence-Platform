@@ -1,8 +1,8 @@
 """Multimodal Construction Intelligence Platform (Skill Wallet Capstone 1).
 
 Streamlit entry point. Four modules:
-  Tab 1 — Site Safety & PPE Audit (Gemini multimodal)
-  Tab 2 — Crack Diagnostics & Structural Integrity (Gemini multimodal)
+  Tab 1 — Site Safety & PPE Audit (multimodal, any provider)
+  Tab 2 — Crack Diagnostics & Structural Integrity (multimodal, any provider)
   Tab 3 — Planning & Real Estate Valuation (deterministic calculator)
   Tab 4 — Daily Site Assistant & Weather-Aware Advisory (chat + alerts)
 
@@ -17,12 +17,12 @@ import urllib.parse
 import streamlit as st
 
 from src import config as C
-from src.gemini_client import (
-    analyze_image,
-    build_client,
-    chat_reply,
-    demo_crack_result,
-    demo_ppe_result,
+from src.gemini_client import demo_crack_result, demo_ppe_result
+from src.providers import (
+    PROVIDERS,
+    fetch_models,
+    run_chat,
+    run_image_analysis,
 )
 from src.prompts import CRACK_DIAGNOSTICS_PROMPT, PPE_AUDIT_PROMPT
 from src.ui import demo_banner, inject_css, pill, severity_pill, status_pill
@@ -38,73 +38,131 @@ inject_css()
 
 
 # ---------------------------------------------------------------------------
-# Sidebar — API key, mode, architecture overview
+# Sidebar — provider, API key, model, architecture overview
 # ---------------------------------------------------------------------------
-def _secret_api_key() -> str:
-    """Key saved in Streamlit secrets (Cloud secrets or .streamlit/secrets.toml)."""
+def _secret_value(name: str) -> str:
+    """A saved secret (Cloud secrets or .streamlit/secrets.toml)."""
     try:
-        return (st.secrets.get("GEMINI_API_KEY", "") or "").strip()
+        return (st.secrets.get(name, "") or "").strip()
     except Exception:
         return ""
 
 
-def _resolve_api_key() -> str:
-    """Sidebar password input wins; a saved secret is the fallback."""
-    typed = st.session_state.get("gemini_api_key", "")
-    if typed:
-        return typed.strip()
-    return _secret_api_key()
+def _key_input(provider: str, secret_name: str, session_key: str,
+                optional: bool = False) -> str:
+    """Key field for one provider. A saved secret hides the input entirely."""
+    if _secret_value(secret_name):
+        st.success(f"🔒 {provider} key saved securely (Streamlit secrets).")
+        return _secret_value(secret_name)
+    typed = st.text_input(
+        f"{provider} API key",
+        type="password",
+        key=session_key,
+        help="Only for this session. Save it in Streamlit secrets to stop being asked."
+        + (" Leave empty for local servers without auth." if optional else ""),
+    )
+    return (typed or "").strip()
+
+
+def _model_picker(provider: str, models: dict, key_prefix: str) -> str:
+    """Model dropdown + editable model-ID field. Returns the effective ID."""
+    label = st.selectbox("Model", list(models), key=f"model_{key_prefix}")
+    info = models[label]
+    model_id = st.text_input(
+        "Model ID (editable)",
+        value=info["model_id"],
+        key=f"mid_{key_prefix}_{label}",
+        help="Exact ID sent to the API. Edit it if your account uses a different ID.",
+    )
+    return (model_id or "").strip() or info["model_id"]
 
 
 with st.sidebar:
     st.title("🏗️ Construction Intelligence")
     st.caption(C.APP_SUBTITLE)
 
-    # --- API key: a saved secret hides the input entirely ---
-    if _secret_api_key():
-        st.success("🔒 API key saved securely (Streamlit secrets) — no need to enter it.")
-    else:
-        st.text_input(
-            "Google Gemini API key",
-            type="password",
-            key="gemini_api_key",
-            help="Only for local testing. For a saved key, use Streamlit secrets — see README.",
-        )
-        st.caption(
-            "Tip: save the key once in Streamlit secrets (or .streamlit/secrets.toml "
-            "locally) and the app will stop asking for it."
-        )
-    api_key = _resolve_api_key()
-    client, client_note = build_client(api_key)
-    mode = "🟢 Live Gemini" if client else "🎭 Demonstration mode"
-    st.markdown(f"**Mode:** {mode}")
-    if client_note:
-        st.caption(client_note)
+    provider = st.selectbox(
+        "AI provider",
+        PROVIDERS,
+        help="Each provider uses its own endpoint and key. Custom endpoint speaks "
+        "OpenAI-compatible chat completions, Hermes-style.",
+    )
+    base_url = ""
+    context_tokens = None
 
-    # --- Model picker with free-tier rate limits ---
-    st.subheader("AI model")
-    model_label = st.selectbox(
-        "Model",
-        list(C.MODELS),
-        index=list(C.MODELS).index(C.DEFAULT_MODEL_LABEL),
-        help="All three accept image + text, so every tab works with any choice.",
-    )
-    model_info = C.MODELS[model_label]
-    selected_model = model_info["model_id"]
-    st.caption(
-        f"Free tier: **{model_info['rpm']} req/min · {model_info['rpd']} req/day · "
-        f"{model_info['tpm']} tokens/min** — {model_info['note']}"
-    )
-    with st.expander("All models' free-tier limits"):
-        for label, info in C.MODELS.items():
-            st.write(
-                f"**{label}** (`{info['model_id']}`): {info['rpm']} req/min, "
-                f"{info['rpd']} req/day, {info['tpm']} tokens/min"
-            )
+    if provider == "Google Gemini":
+        api_key = _key_input("Google Gemini", "GEMINI_API_KEY", "gemini_api_key")
+        model_id = _model_picker(provider, C.MODELS, "gemini")
+        info = C.MODELS[st.session_state["model_gemini"]]
         st.caption(
-            "Approximate free-tier figures — Google no longer publishes a free-tier "
-            "table, so your exact quota is shown in Google AI Studio. Paid tiers "
-            "raise these limits substantially."
+            f"Free tier: **{info['rpm']} req/min · {info['rpd']} req/day · "
+            f"{info['tpm']} tokens/min** — {info['note']}"
+        )
+        with st.expander("All Gemini models' free-tier limits"):
+            for label, item in C.MODELS.items():
+                st.write(
+                    f"**{label}** (`{item['model_id']}`): {item['rpm']} req/min, "
+                    f"{item['rpd']} req/day, {item['tpm']} tokens/min"
+                )
+            st.caption(
+                "Approximate free-tier figures — Google no longer publishes a "
+                "free-tier table, so your exact quota is shown in Google AI Studio. "
+                "Paid tiers raise these limits substantially."
+            )
+    elif provider == "Anthropic":
+        api_key = _key_input("Anthropic", "ANTHROPIC_API_KEY", "anthropic_api_key")
+        model_id = _model_picker(provider, C.ANTHROPIC_MODELS, "anthropic")
+        info = C.ANTHROPIC_MODELS[st.session_state["model_anthropic"]]
+        st.caption(f"{info['note']} Rate limits depend on your plan — see the Anthropic console.")
+    elif provider == "OpenAI":
+        api_key = _key_input("OpenAI", "OPENAI_API_KEY", "openai_api_key")
+        model_id = _model_picker(provider, C.OPENAI_MODELS, "openai")
+        info = C.OPENAI_MODELS[st.session_state["model_openai"]]
+        st.caption(f"{info['note']} Rate limits depend on your plan — see the OpenAI console.")
+    else:  # Custom endpoint (Hermes-style)
+        base_url = st.text_input(
+            "Base URL",
+            value=_secret_value("CUSTOM_BASE_URL") or "http://localhost:11434/v1",
+            help="OpenAI-compatible endpoint. /v1 is added automatically if missing.",
+        )
+        api_key = _key_input(
+            "Custom endpoint", "CUSTOM_API_KEY", "custom_api_key", optional=True
+        )
+        if st.button("Fetch models"):
+            ids, err = fetch_models(base_url, api_key)
+            if err:
+                st.error(err)
+            else:
+                st.session_state["custom_models"] = ids
+                st.session_state["custom_model_input"] = ids[0]
+        model_id = st.text_input(
+            "Model name",
+            value=_secret_value("CUSTOM_MODEL") or "",
+            key="custom_model_input",
+            help="Any model your endpoint serves, e.g. qwen3.5:27b. Use Fetch models "
+            "above to list what the server offers.",
+        )
+        if st.session_state.get("custom_models"):
+            st.caption("Server models: " + ", ".join(st.session_state["custom_models"]))
+        with st.expander("Advanced"):
+            context_tokens = st.number_input(
+                "Context length (chat history budget, tokens)",
+                min_value=0,
+                value=64000,
+                step=1000,
+                help="Older chat turns are trimmed to fit this budget. Image analysis "
+                "is single-turn and unaffected. (Hermes-style field; unlike Hermes, "
+                "this app sends short requests, so no 64K minimum is enforced.)",
+            )
+
+    # --- Mode indicator ---
+    live = bool(api_key) if provider != "Custom endpoint" else bool(base_url.strip())
+    mode = f"🟢 Live {provider}" if live else "🎭 Demonstration mode"
+    st.markdown(f"**Mode:** {mode}")
+    if not live:
+        st.caption(
+            "Add a key (or a base URL for custom endpoints) for live analysis — "
+            "otherwise demonstration results are shown."
         )
 
     st.divider()
@@ -115,8 +173,11 @@ with st.sidebar:
         Streamlit UI (4 tabs)
               │
         ┌─────┴──────┐
-        │ Gemini API │  (multimodal + chat)
-        │  (optional)│
+        │ LLM provider│ (multimodal + chat)
+        │ Gemini /    │
+        │ Anthropic / │
+        │ OpenAI /    │
+        │ Custom      │
         └─────┬──────┘
               │
         Demo fallback engine
@@ -191,9 +252,9 @@ with tabs[0]:
         st.image(image_bytes, caption="Uploaded site photo", width=480)
         if st.button("Run PPE Audit", key="ppe_run"):
             with st.spinner("Analysing PPE compliance…"):
-                result, note = analyze_image(
-                    client, image_bytes, mime, PPE_AUDIT_PROMPT, demo_ppe_result,
-                    model=selected_model,
+                result, note = run_image_analysis(
+                    provider, api_key, model_id, base_url,
+                    image_bytes, mime, PPE_AUDIT_PROMPT, demo_ppe_result,
                 )
             if note:
                 demo_banner(note)
@@ -249,9 +310,9 @@ with tabs[1]:
         st.image(image_bytes, caption="Uploaded surface photo", width=480)
         if st.button("Diagnose Crack", key="crack_run"):
             with st.spinner("Diagnosing structural defect…"):
-                result, note = analyze_image(
-                    client, image_bytes, mime, CRACK_DIAGNOSTICS_PROMPT, demo_crack_result,
-                    model=selected_model,
+                result, note = run_image_analysis(
+                    provider, api_key, model_id, base_url,
+                    image_bytes, mime, CRACK_DIAGNOSTICS_PROMPT, demo_crack_result,
                 )
             if note:
                 demo_banner(note)
@@ -379,7 +440,7 @@ with tabs[3]:
     st.subheader("💬 Construction engineering assistant")
     st.caption(
         "Ask about safety, concrete, curing, scaffolding, cranes or IS codes. "
-        "Live Gemini answers when a key is set; otherwise a built-in "
+        "Live answers from the selected provider when a key is set; otherwise a built-in "
         "rule-based assistant replies."
     )
     st.session_state.setdefault("chat_history", [])
@@ -392,8 +453,9 @@ with tabs[3]:
         with st.chat_message("user"):
             st.write(user_msg)
         with st.spinner("Thinking…"):
-            reply, note = chat_reply(
-                client, st.session_state["chat_history"], user_msg, model=selected_model
+            reply, note = run_chat(
+                provider, api_key, model_id, base_url,
+                st.session_state["chat_history"], context_tokens=context_tokens,
             )
         st.session_state["chat_history"].append({"role": "assistant", "content": reply})
         with st.chat_message("assistant"):

@@ -202,3 +202,39 @@ MODELS = {
 }
 
 DEFAULT_MODEL_LABEL = "Gemini 3.6 Flash"
+
+# ---------------------------------------------------------------------------
+# Anthropic / OpenAI models selectable in the sidebar
+# ---------------------------------------------------------------------------
+# Model IDs follow the providers' naming patterns (e.g. the Hermes guides
+# use `claude-sonnet-5-5`). They are editable in the sidebar because exact
+# IDs can differ by account — the UI never hard-codes them as unchangeable.
+ANTHROPIC_MODELS = {
+    "Opus 5.5": {
+        "model_id": "claude-opus-5-5",
+        "note": "Most capable — hardest reasoning and long-horizon work.",
+    },
+    "Sonnet 5.5": {
+        "model_id": "claude-sonnet-5-5",
+        "note": "Balanced capability and speed — the everyday default.",
+    },
+    "Haiku 5.5": {
+        "model_id": "claude-haiku-5-5",
+        "note": "Fastest and cheapest — high-volume, lighter tasks.",
+    },
+}
+
+OPENAI_MODELS = {
+    "GPT 6 Astra": {
+        "model_id": "gpt-6-astra",
+        "note": "Flagship general model.",
+    },
+    "GPT 6.1 Sol": {
+        "model_id": "gpt-6.1-sol",
+        "note": "Strong reasoning / agentic work.",
+    },
+    "GPT 6 Luna": {
+        "model_id": "gpt-6-luna",
+        "note": "Fast, lightweight everyday model.",
+    },
+}
