@@ -271,8 +271,15 @@ def run_image_analysis(
     mime_type: str,
     prompt: str,
     demo_fn: Callable[[bytes], dict],
+    force_demo: bool = False,
 ) -> Tuple[dict, str]:
-    """Run a multimodal analysis through the selected provider."""
+    """Run a multimodal analysis through the selected provider.
+
+    With ``force_demo`` the provider is never called — the demonstration
+    result is returned even when a key is configured.
+    """
+    if force_demo:
+        return demo_fn(image_bytes), "Demonstration mode selected in the sidebar."
     try:
         if provider == "Google Gemini":
             client, note = build_gemini_client(api_key)
@@ -333,6 +340,14 @@ def run_image_analysis(
         )
 
 
+DEMO_CHAT_REPLY = (
+    "Demonstration answer: for site questions, start with the safety "
+    "check — PPE, fall protection, electrical isolation, and weather "
+    "conditions — then confirm the detail against IS 456 / IS 1893. "
+    "Add an API key in the sidebar for full AI answers."
+)
+
+
 def run_chat(
     provider: str,
     api_key: str,
@@ -340,20 +355,20 @@ def run_chat(
     base_url: str,
     history: list,
     context_tokens: Optional[int] = None,
+    force_demo: bool = False,
 ) -> Tuple[str, str]:
-    """Run one chat turn through the selected provider."""
+    """Run one chat turn through the selected provider.
+
+    With ``force_demo`` the provider is never called.
+    """
+    if force_demo:
+        return DEMO_CHAT_REPLY, "Demonstration mode selected in the sidebar."
     try:
         history = trim_history(history, context_tokens)
         if provider == "Google Gemini":
             client, note = build_gemini_client(api_key)
             if client is None:
-                return (
-                    "Demonstration answer: for site questions, start with the safety "
-                    "check — PPE, fall protection, electrical isolation, and weather "
-                    "conditions — then confirm the detail against IS 456 / IS 1893. "
-                    "Add an API key in the sidebar for full AI answers.",
-                    note or "Demonstration mode.",
-                )
+                return DEMO_CHAT_REPLY, note or "Demonstration mode."
             transcript = "\n".join(
                 f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
                 for m in history[-10:]
@@ -405,7 +420,6 @@ def run_chat(
         raise ValueError(f"Unknown provider: {provider}")
     except Exception as exc:
         return (
-            "I could not reach the assistant service right now. Please check the "
-            "provider, model and key in the sidebar, then retry.",
-            f"{provider} chat failed ({exc}).",
+            DEMO_CHAT_REPLY,
+            f"{provider} chat failed ({exc}). Showing a demonstration answer instead.",
         )

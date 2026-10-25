@@ -24,6 +24,19 @@ No API key is required to explore: without a key the app runs in
 **demonstration mode** with realistic, image-seeded sample results. For live
 multimodal analysis and chat, pick a provider in the sidebar and add its key.
 
+## Mode switch
+
+The sidebar has a **Mode** switch with two options:
+
+- **🎭 Demonstration** — sample results only. The provider is never called,
+  even if a key is saved, so no quota is used. Useful for demos and testing.
+- **🔑 Use API key** — live calls to the selected provider. If no key is
+  found for that provider, demonstration results are shown with a note
+  explaining why.
+
+The switch defaults to **Use API key** when any provider key is saved in
+secrets, and to **Demonstration** otherwise.
+
 ## Providers
 
 | Provider | Endpoint | Models (defaults, IDs editable in the sidebar) |

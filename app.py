@@ -81,6 +81,26 @@ with st.sidebar:
     st.title("🏗️ Construction Intelligence")
     st.caption(C.APP_SUBTITLE)
 
+    # --- Mode switch: Demonstration vs Use API key ---
+    any_secret = any(
+        _secret_value(name)
+        for name in (
+            "GEMINI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "CUSTOM_API_KEY",
+        )
+    )
+    app_mode = st.radio(
+        "Mode",
+        ["🎭 Demonstration", "🔑 Use API key"],
+        index=1 if any_secret else 0,
+        help="Demonstration shows sample results and never calls a provider, so no "
+        "quota is used. Use API key sends your photos and questions to the "
+        "selected provider.",
+    )
+    force_demo = app_mode.startswith("🎭")
+
     provider = st.selectbox(
         "AI provider",
         PROVIDERS,
@@ -156,14 +176,19 @@ with st.sidebar:
             )
 
     # --- Mode indicator ---
-    live = bool(api_key) if provider != "Custom endpoint" else bool(base_url.strip())
-    mode = f"🟢 Live {provider}" if live else "🎭 Demonstration mode"
-    st.markdown(f"**Mode:** {mode}")
-    if not live:
-        st.caption(
-            "Add a key (or a base URL for custom endpoints) for live analysis — "
-            "otherwise demonstration results are shown."
-        )
+    if force_demo:
+        st.markdown("**Mode:** 🎭 Demonstration mode")
+        st.caption("Sample results only — no provider is called and no quota is used.")
+    else:
+        live = bool(api_key) if provider != "Custom endpoint" else bool(base_url.strip())
+        mode = f"🟢 Live {provider}" if live else "🎭 Demonstration mode"
+        st.markdown(f"**Mode:** {mode}")
+        if not live:
+            st.caption(
+                "No key found for this provider — demonstration results are shown. "
+                "Add the key in Streamlit secrets or in the field above, or switch "
+                "to Demonstration mode."
+            )
 
     st.divider()
     st.subheader("Architecture overview")
@@ -255,6 +280,7 @@ with tabs[0]:
                 result, note = run_image_analysis(
                     provider, api_key, model_id, base_url,
                     image_bytes, mime, PPE_AUDIT_PROMPT, demo_ppe_result,
+                    force_demo=force_demo,
                 )
             if note:
                 demo_banner(note)
@@ -313,6 +339,7 @@ with tabs[1]:
                 result, note = run_image_analysis(
                     provider, api_key, model_id, base_url,
                     image_bytes, mime, CRACK_DIAGNOSTICS_PROMPT, demo_crack_result,
+                    force_demo=force_demo,
                 )
             if note:
                 demo_banner(note)
@@ -456,6 +483,7 @@ with tabs[3]:
             reply, note = run_chat(
                 provider, api_key, model_id, base_url,
                 st.session_state["chat_history"], context_tokens=context_tokens,
+                force_demo=force_demo,
             )
         st.session_state["chat_history"].append({"role": "assistant", "content": reply})
         with st.chat_message("assistant"):
